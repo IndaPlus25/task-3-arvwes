@@ -48,6 +48,7 @@ impl Square{
     }
 }
 
+#[derive(Debug, Clone, Copy)]
 pub struct Piece{
     kind: PieceKind, 
     color: Color,
@@ -73,13 +74,13 @@ impl Piece{
         }.to_string()
     }
 }
-
+#[derive(Debug, Clone, Copy)]
 pub enum Color{
     White,
     Black,
     None,
 }
-
+#[derive(Debug, Clone, Copy)]
 pub enum PieceKind{
     Rook,
     Knight,
@@ -104,8 +105,36 @@ impl Game {
                 }
             }
         
-        fn init_board() -> Vec<(Square, Piece)> {
-            let mut origin_board: Vec<(Square, Piece)> = Vec::new();
+        fn init_board() -> [[Piece; 8]; 8] {
+            let mut board: [[Piece; 8]; 8] = [[Piece::new(PieceKind::Empty,Color::None);8];8];
+
+            for row in 0..8 {
+                for column in 0..8 {
+                    let color = match row{
+                            0 | 1 => Color::White,
+                            6 | 7 => Color::Black,
+                            _ => Color::None,
+                        };
+                    if row == 0 | 7 {
+                        
+                        match column {
+                        0 | 7 => board [row][column] = Piece::new(PieceKind::Rook, color),
+                        1 | 6 => board [row][column] = Piece::new(PieceKind::Knight, color),
+                        2 | 5 => board [row][column] = Piece::new(PieceKind::Bishop, color),
+                        3 => board [row][column] = Piece::new(PieceKind::King, color),
+                        4 => board [row][column] = Piece::new(PieceKind::Queen, color),
+                        _ => None,
+                        }
+
+                    } else if row == 1 | 6{
+                        board [row][column] = Piece::new(PieceKind::Pawn, color);
+                    }
+                    
+                }
+                
+            }
+            return board;
+          /*   let mut origin_board: Vec<(Square, Piece)> = Vec::new();
            for i in 0..8{
                     for j in 0..8{
                         let square = Square::new(j,i); 
@@ -150,13 +179,13 @@ impl Game {
                     for i in 0..8 {
                         for j in 0..8  {
                         }
-                    }
-                        return origin_board;
+                    }*/
+                      
 
                     
                 }
                 
-            
+        
         
         
 
