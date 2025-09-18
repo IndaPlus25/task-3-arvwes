@@ -137,10 +137,11 @@ impl Game {
 
         let piece_to_move = &current_board[current_row][current_column];
 
-        ///check if the move is possible, return true if it is, 
+        ///checks if the move in sequence is possible (used for pieces without dsitance move constraints), 
+        /// return true if the next move may be possible aswell, 
         ///adds possible moves to the possible_moves vector
         let mut is_move_ok =
-            | new_row: usize, new_column: usize| -> bool {
+            |new_row: usize, new_column: usize| -> bool {
                 let blocking_piece =&current_board[new_row][new_column];
                 if blocking_piece.kind == PieceKind::Empty {
                     possible_moves.push(Position::new(new_row, new_column));
@@ -153,9 +154,10 @@ impl Game {
                     return false; //piece in same collor is blocking
                 }
             };
+        
 
         ///checks rook moves based on the piece's current position
-        let check_rook_moves = |current_row, current_column| {
+        let check_rook_moves = |current_row: usize, current_column: usize| {
             
             //an aaarray with possible directions for a rook: [up, down, left, right]
             let rook_directions: [(i8, i8); 4] = [(-1, 0), (1, 0), (0, -1), (0, 1)];
@@ -177,6 +179,19 @@ impl Game {
                     next += 1;
                 }
             }
+        };
+
+        let mut check_knight_moves= |current_row: usize, current_column: usize|{
+             let knight_offsets: [(i8, i8); 8] = [(-2, -1), (-2, 1), (-1, 2), (-1, -2), 
+                (2, -1), (2, 1), (1, -2), (-1,-2)];
+                for (row_offset, column_offset) in knight_offsets {
+                    let new_row: usize = current_row + row_offset;
+                    let new_column: usize = current_column + row_offset;
+                    if !(new_row < 0 || new_row > 7 || new_column < 0 || new_column > 7) {
+                        is_move_ok(new_row, new_column);
+                    }
+                    
+                }
         };
 
        /*  let check_rook_moves = |mover_row: usize, mover_column: usize| {
@@ -247,44 +262,9 @@ impl Game {
         };*/
 
         match piece_to_move.kind {
-            PieceKind::Rook => check_rook_moves(mover_row, mover_column),
-            //NEED TO MAke niccceeer
-            PieceKind::Knight => {
-                // Needs to be redone compleatly, very messy and i don know if it works. 
-                let blocking_pieces: [Piece; 8] = [Piece::new(PieceKind::Empty, Color::None); 8];
-
-                if mover_row <= 5 {
-                    let closest_piece = current_board[mover_row + 2][mover_column + 1];
-                    if closest_piece.color != piece_to_move.color {
-                        possible_moves.push(Position::new(mover_row, column));
-                    }
-                    blocking_pieces[0] = closest_piece;
-
-                    let closest_piece = current_board[mover_row + 2][mover_column - 1];
-                    blocking_pieces[1] = closest_piece;
-                }
-                if mover_row >= 2 {
-                    let closest_piece = current_board[mover_row - 2][mover_column + 1];
-                    blocking_pieces[2] = closest_piece;
-
-                    let closest_piece = current_board[mover_row - 2][mover_column - 1];
-                    blocking_pieces[3] = closest_piece;
-                }
-                if mover_column <= 5 {
-                    let closest_piece = current_board[mover_row + 1][mover_column + 2];
-                    blocking_pieces[4] = closest_piece;
-
-                    let closest_piece = current_board[mover_row - 1][mover_column + 2];
-                    blocking_pieces[5] = closest_piece;
-                }
-                if mover_row >= 2 {
-                    let closest_piece = current_board[mover_row + 1][mover_column - 2];
-                    blocking_pieces[6] = closest_piece;
-
-                    let closest_piece = current_board[mover_row - 1][mover_column - 2];
-                    blocking_pieces[7] = closest_piece;
-                }
-            }
+            PieceKind::Rook => check_rook_moves(current_row, current_column),
+            PieceKind::Knight => check_knight_moves(current_row, current_column),
+            
             //this is not finished
             PieceKind::Bishop => check_bishop_moves(mover_row, mover_column, current_board),
             PieceKind::King => check_queen_moves(mover_row, mover_column, current_board),
