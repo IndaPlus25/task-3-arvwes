@@ -110,14 +110,14 @@ impl Game {
 
     /// If the current game state is `InProgress` and the move is legal,
     /// move a piece and return the resulting state of the game.
-    pub fn make_move(&mut self, _from: &Position, _to: &Position) -> Option<GameState> {
+    /*     pub fn make_move(&mut self, _from: &Position, _to: &Position) -> Option<GameState> {
         None
     }
 
     /// Set the piece type that a pawn becames following a promotion.
     pub fn set_promotion(&mut self, _piece: &Position) -> () {
         ()
-    }
+    }*/
 
     /// Get the current game state.
     pub fn get_game_state(&self) -> GameState {
@@ -128,52 +128,89 @@ impl Game {
     /// new positions of that piece. Don't forget to the rules for check.
     ///
     /// (optional) Don't forget to include en passent and castling.
-    pub fn get_possible_moves(&self, _position: (usize, usize)) -> Option<Vec<(usize, usize)>> {
+    pub fn get_possible_moves(&self, _positions: (usize, usize)) -> Option<Vec<(usize, usize)>> {
+        const BISHOP_DIRECTIONS: [(i8, i8); 4] = [(-1, -1), (-1, 1), (1, 1), (1, -1)];
+        const ROOK_DIRECTIONS: [(i8, i8); 4] = [(-1, 0), (1, 0), (0, -1), (0, 1)];
+        const QUEEN_DIRECTIONS: [(i8, i8); 8] = [
+            (-1, -1),
+            (-1, 1),
+            (1, 1),
+            (1, -1), //Bishop directions
+            (-1, 0),
+            (1, 0),
+            (0, -1),
+            (0, 1), // Rook directions
+        ];
+        const KNIGHT_OFFSETS: [(i8, i8); 8] = [
+            (-2, -1),
+            (-2, 1),
+            (-1, 2),
+            (-1, -2),
+            (2, -1),
+            (2, 1),
+            (1, -2),
+            (-1, -2),
+        ];
+
         let mut possible_moves: Vec<(usize, usize)> = Vec::new();
 
-        let current_board = &self.board;
-        let current_row = _position.0;
-        let current_column = _position.1;
+        let current_board: &[[Piece; 8]; 8] = &self.board;
+        let current_row: usize = _positions.0;
+        let current_column: usize = _positions.1;
 
-        let piece_to_move = &current_board[current_row][current_column];
+        let piece_to_move: &Piece = &current_board[current_row][current_column];
 
-        ///checks if the move in sequence is possible (used for pieces without dsitance move constraints), 
-        /// return true if the next move may be possible aswell, 
+        ///checks if the move in sequence is possible (used for pieces without dsitance move constraints),
+        /// return true if the next move may be possible aswell,
         ///adds possible moves to the possible_moves vector
-        let mut is_move_ok =
-            |new_row: usize, new_column: usize| -> bool {
-                let blocking_piece =&current_board[new_row][new_column];
-                if blocking_piece.kind == PieceKind::Empty {
-                    possible_moves.push(Position::new(new_row, new_column));
-                    return true; //empty square keep checking if next square is empty
+        pub fn is_move_ok(
+            current_board: &[[Piece; 8]; 8],
+            possible_moves: &mut Vec<(usize, usize)>,
+            piece_to_move: &Piece,
+            new_row: usize,
+            new_column: usize,
+        ) -> bool {
+            let blocking_piece: &Piece = &current_board[new_row][new_column];
+            if blocking_piece.kind == PieceKind::Empty {
+                possible_moves.push((new_row, new_column));
+                return true; //empty square keep checking if next square is empty
+            } else if blocking_piece.color != piece_to_move.color {
+                possible_moves.push((new_row, new_column));
+                return false; //stops further moves
+            } else {
+                return false; //piece in same collor is blocking
+            }
+        };
 
-                } else if blocking_piece.color != piece_to_move.color {
-                    possible_moves.push(Position::new(new_row, new_column));
-                    return false; //stops further moves
-                } else {
-                    return false; //piece in same collor is blocking
-                }
-            };
-        
+        fn check_sequence_of_moves(
+            _directions: &[(i8, i8)],
+            current_row: usize,
+            current_column: usize,
+            current_board: &[[Piece; 8]; 8],
+            piece_to_move: &Piece,
+            possible_moves: &mut Vec<(usize, usize)>,
+        ) {
+            let directions = _directions;
 
-        ///checks rook moves based on the piece's current position
-        let check_rook_moves = |current_row: usize, current_column: usize| {
-            
-            //an aaarray with possible directions for a rook: [up, down, left, right]
-            let rook_directions: [(i8, i8); 4] = [(-1, 0), (1, 0), (0, -1), (0, 1)];
-            //loops through all 4 directions
-            for (row, column) in rook_directions {
+            //loops through all directions
+            for (row, column) in directions {
                 let mut next = 1;
-                //Loops through and adds possible moves in the chosen dierction to possible_moves 
+                //Loops through and adds possible moves in the chosen dierction to possible_moves
                 // untill an impossible move is found
                 while true {
-                    let new_row = current_row + row * next;
-                    let new_column = current_column + column * next;
+                    let new_row: i8 = current_row as i8 + row * next;
+                    let new_column: i8 = current_column as i8 + column * next;
                     if new_row < 0 || new_row > 7 || new_column < 0 || new_column > 7 {
                         break;
                     }
 
-                    if !is_move_ok(new_row, new_column) {
+                    if !is_move_ok(
+                        current_board,
+                        possible_moves,
+                        piece_to_move,
+                        new_row as usize,
+                        new_column as usize,
+                    ) {
                         break;
                     }
                     next += 1;
@@ -181,20 +218,32 @@ impl Game {
             }
         };
 
-        let mut check_knight_moves= |current_row: usize, current_column: usize|{
-             let knight_offsets: [(i8, i8); 8] = [(-2, -1), (-2, 1), (-1, 2), (-1, -2), 
-                (2, -1), (2, 1), (1, -2), (-1,-2)];
-                for (row_offset, column_offset) in knight_offsets {
-                    let new_row: usize = current_row + row_offset;
-                    let new_column: usize = current_column + row_offset;
-                    if !(new_row < 0 || new_row > 7 || new_column < 0 || new_column > 7) {
-                        is_move_ok(new_row, new_column);
-                    }
-                    
+        fn check_knight_moves(
+            _offsets: &[(i8, i8)],
+            current_row: usize,
+            current_column: usize,
+            current_board: &[[Piece; 8]; 8],
+            piece_to_move: &Piece,
+            possible_moves: &mut Vec<(usize, usize)>,
+        ) {
+            let offsets = _offsets;
+
+            for (row_offset, column_offset) in KNIGHT_OFFSETS {
+                let new_row: i8 = current_row as i8 + row_offset;
+                let new_column: i8 = current_column as i8 + row_offset;
+                if !(new_row < 0 || new_row > 7 || new_column < 0 || new_column > 7) {
+                    is_move_ok(
+                        current_board,
+                        possible_moves,
+                        piece_to_move,
+                        new_row as usize,
+                        new_column as usize,
+                    );
                 }
+            }
         };
 
-       /*  let check_rook_moves = |mover_row: usize, mover_column: usize| {
+        /*  let check_rook_moves = |mover_row: usize, mover_column: usize| {
             for row in (0..mover_row).rev() {
                 let closest_piece = current_board[row][mover_column];
                 if !add_if_movable(&closest_piece, row, mover_column) {
@@ -223,7 +272,7 @@ impl Game {
                 }
             }
         };
-        
+
         let check_bishop_moves = |mover_row: usize, mover_column: usize|{
            for i in 1..min(mover_row, mover_column){
                        let closest_piece = current_board[mover_row-i][mover_column-i];
@@ -262,15 +311,19 @@ impl Game {
         };*/
 
         match piece_to_move.kind {
-            PieceKind::Rook => check_rook_moves(current_row, current_column),
-            PieceKind::Knight => check_knight_moves(current_row, current_column),
-            
+            PieceKind::Rook => {
+               check_sequence_of_moves(&ROOK_DIRECTIONS, current_row, current_column, current_board, piece_to_move, &mut possible_moves);
+                return Some(possible_moves);
+            }
+            PieceKind::Knight => Some(possible_moves), //check_knight_moves(KNIGHT_OFFSETS),
+            PieceKind::Bishop => Some(possible_moves), //check_sequence_of_moves(BISHOP_DIRECTIONS),
             //this is not finished
-            PieceKind::Bishop => check_bishop_moves(mover_row, mover_column, current_board),
-            PieceKind::King => check_queen_moves(mover_row, mover_column, current_board),
-            PieceKind::Queen => check_queen_moves(mover_row, mover_column, current_board),
-            PieceKind::Pawn => check_queen_moves(mover_row, mover_column, current_board),
-            PieceKind::Empty => check_queen_moves(mover_row, mover_column, current_board),
+            PieceKind::King => Some(possible_moves), // check_sequence_of_moves(ROOK_DIRECTIONS),
+
+            PieceKind::Queen => Some(possible_moves), //check_sequence_of_moves(ROOK_DIRECTIONS),// check_sequence_of_moves(QUEEN_DIRECTIONS),
+            //this is not finished
+            PieceKind::Pawn => Some(possible_moves), //check_sequence_of_moves(ROOK_DIRECTIONS),
+            PieceKind::Empty => Some(possible_moves), //check_sequence_of_moves(ROOK_DIRECTIONS),s
         }
     }
 }
@@ -289,9 +342,10 @@ impl Game {
 /// |:----------------------:|
 impl fmt::Debug for Game {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, " possible moves : {:?}", self.get_possible_moves((0, 0)));
         /* build board representation string */
-        writeln!(f, "{:#?}", self.board)?;
-        write!(f, "|:----------------------:|\n");
+       // writeln!(f, "{:#?}", self.board)?;
+        write!(f, "\n|:----------------------:|\n");
         for row in self.board {
             write!(f, "|");
             //
@@ -307,9 +361,9 @@ impl fmt::Debug for Game {
                     PieceKind::Empty => "* ",
                 }
                 .to_string();
-              //if the piece is black lower case is used
+                //if the piece is black lower case is used
                 if piece.color == Color::Black {
-                    piece_as_string = ppiece_as_string.to_lowercase();
+                    piece_as_string = piece_as_string.to_lowercase();
                 }
                 write!(f, " {}", piece_as_string);
             }
@@ -317,7 +371,7 @@ impl fmt::Debug for Game {
             writeln!(f)?;
         }
         write!(f, "|:----------------------:|\n");
-        Ok(())// i dont know what this does, but its needed
+        Ok(()) // i dont know what this does, but its needed
     }
 }
 
