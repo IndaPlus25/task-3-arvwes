@@ -109,43 +109,68 @@ impl Game {
 
     /// If the current game state is `InProgress` and the move is legal,
     /// move a piece and return the resulting state of the game.
-         pub fn make_move(&mut self, from: &(usize, usize), to: &(usize, usize)) -> Option<GameState> {
-            println!("in funciton ::{:?}", self.get_possible_moves(from));
-            if self.get_possible_moves(from).is_some() && self.get_game_state() == GameState::InProgress {
-                let possible_moves = self.get_possible_moves(from).unwrap();
-                if possible_moves.contains(to) {
-                    let board = &mut self.board;
+    pub fn make_move(&mut self, from: &(usize, usize), to: &(usize, usize)) {
+        println!("in funciton ::{:?}", self.get_possible_moves(from));
+        if self.get_possible_moves(from).is_some() && self.get_game_state() == GameState::InProgress
+        {
+            let possible_moves = self.get_possible_moves(from).unwrap();
+            if possible_moves.contains(to) {
+                let board = &mut self.board;
                 let from_row = from.0;
                 let from_column = from.1;
                 let to_row = to.0;
                 let to_column = to.1;
 
                 let piece_to_move = board[from_row][from_column];
-                 board[to_row][to_column] = piece_to_move;
-                 board[from_row][from_column] = Piece { kind: PieceKind::Empty, color: Color::None };
-                let new_game_state = GameState::InProgress;
-                
-                if self.active_color == Color::Black{
+                if piece_to_move.kind == PieceKind::Pawn && (to_row == 0 || to_row == 7) {
+                    let _input_promotion: i32 = 4;
+                    match _input_promotion {
+                        1 => {
+                            board[to_row][to_column] =
+                                Piece::new(PieceKind::Rook, piece_to_move.color)
+                        }
+                        2 => {
+                            board[to_row][to_column] =
+                                Piece::new(PieceKind::Knight, piece_to_move.color)
+                        }
+                        3 => {
+                            board[to_row][to_column] =
+                                Piece::new(PieceKind::Bishop, piece_to_move.color)
+                        }
+                        4 => {
+                            board[to_row][to_column] =
+                                Piece::new(PieceKind::Queen, piece_to_move.color)
+                        }
+                        _ => {
+                            board[to_row][to_column] =
+                                Piece::new(PieceKind::Queen, piece_to_move.color)
+                        }
+                    }
+                } else {
+                    board[to_row][to_column] = piece_to_move;
+                }
+
+                board[from_row][from_column] = Piece {
+                    kind: PieceKind::Empty,
+                    color: Color::None,
+                };
+
+                if self.active_color == Color::Black {
                     self.active_color = Color::White;
-                }else{
+                } else {
                     self.active_color = Color::Black;
                 }
-                return  Some(new_game_state);
-                }else{
-                    return None;
-                }
-
-                
-            }else{
-                return None;
             }
-
-        
+        }
     }
 
     /// Set the piece type that a pawn becames following a promotion.
     pub fn set_promotion(&mut self, _piece: &(usize, usize)) -> () {
         ()
+    }
+
+    pub fn check_if_is_checking(&mut self, position: &(usize, usize)) {
+        self.get_possible_moves(position);
     }
 
     /// Get the current game state.
@@ -157,7 +182,7 @@ impl Game {
     /// new positions of that piece. Don't forget to the rules for check.
     ///
     /// (optional) Don't forget to include en passent and castling.
-    pub fn get_possible_moves(&self, positions: &(usize, usize)) -> Option<Vec<(usize, usize)>> {
+    pub fn get_possible_moves(&self, position: &(usize, usize)) -> Option<Vec<(usize, usize)>> {
         const BISHOP_DIRECTIONS: [(i8, i8); 4] = [(-1, -1), (-1, 1), (1, 1), (1, -1)];
         const ROOK_DIRECTIONS: [(i8, i8); 4] = [(-1, 0), (1, 0), (0, -1), (0, 1)];
         const QUEEN_DIRECTIONS: [(i8, i8); 8] = [
@@ -186,10 +211,14 @@ impl Game {
         let mut possible_moves: Vec<(usize, usize)> = Vec::new();
 
         let current_board: &[[Piece; 8]; 8] = &self.board;
-        let current_row: usize = positions.0;
-        let current_column: usize = positions.1;
+        let current_row: usize = position.0;
+        let current_column: usize = position.1;
 
         let piece_to_move: &Piece = &current_board[current_row][current_column];
+        if piece_to_move.color != self.active_color {
+            println!("not your turn");
+            return None;
+        }
 
         ///checks if the move in sequence is possible (used for pieces without dsitance move constraints),
         /// return true if the next move may be possible aswell,
@@ -207,9 +236,15 @@ impl Game {
                 return true; //empty square keep checking if next square is empty
             } else if blocking_piece.color != piece_to_move.color {
                 possible_moves.push((new_row, new_column));
+                if blocking_piece.kind == PieceKind::King {
+                    self::GameState::Check;
+                } else {
+                    self::GameState::InProgress;
+                }
+
                 return false; //stops further moves
             } else {
-                return false; //piece in same collor is blocking
+                return false; //piece of same color is blocking
             }
         }
 
@@ -249,6 +284,33 @@ impl Game {
             }
         }
 
+        fn check_if_in_check(
+            active_color: Color,
+            current_board: &[[Piece; 8]; 8],
+            possible_moves: &mut Vec<(usize, usize)>,
+            piece_to_move: &Piece,
+            new_row: usize,
+            new_column: usize,
+        ) -> bool {
+            for row in 0..current_board.len() {
+                for column in 0..current_board.len() {
+                    if current_board[row][column].kind == PieceKind::King
+                        && current_board[row][column].color == active_color
+                    {
+                        check_sequence_of_moves(
+                            &ROOK_DIRECTIONS,
+                            row,
+                            column,
+                            current_board,
+                            piece_to_move,
+                            possible_moves,
+                        );
+                    }
+                }
+            }
+            return false;
+        }
+
         match piece_to_move.kind {
             PieceKind::Rook => {
                 check_sequence_of_moves(
@@ -261,8 +323,8 @@ impl Game {
                 );
                 if possible_moves.is_empty() {
                     return None;
-                }else{
-                     return Some(possible_moves);
+                } else {
+                    return Some(possible_moves);
                 }
             }
             PieceKind::Knight => {
@@ -281,8 +343,8 @@ impl Game {
                 }
                 if possible_moves.is_empty() {
                     return None;
-                }else{
-                     return Some(possible_moves);
+                } else {
+                    return Some(possible_moves);
                 }
             }
             PieceKind::Bishop => {
@@ -296,8 +358,8 @@ impl Game {
                 );
                 if possible_moves.is_empty() {
                     return None;
-                }else{
-                     return Some(possible_moves);
+                } else {
+                    return Some(possible_moves);
                 }
             }
             //this is not finished
@@ -317,8 +379,8 @@ impl Game {
                 }
                 if possible_moves.is_empty() {
                     return None;
-                }else{
-                     return Some(possible_moves);
+                } else {
+                    return Some(possible_moves);
                 }
             }
             // check_sequence_of_moves(ROOK_DIRECTIONS),
@@ -333,43 +395,47 @@ impl Game {
                 );
                 if possible_moves.is_empty() {
                     return None;
-                }else{
-                     return Some(possible_moves);
+                } else {
+                    return Some(possible_moves);
                 }
             }
             PieceKind::Pawn => {
-             
                 for (white_row_offset, column_offset) in WHITE_PAWN_OFFSETS {
                     let mut row_offset = white_row_offset;
                     if piece_to_move.color == Color::Black {
-                         row_offset = -white_row_offset;
+                        row_offset = -white_row_offset;
                     }
                     let new_row = (current_row as i8 + row_offset) as usize;
                     let new_column = (current_column as i8 + column_offset) as usize;
-                       if !(new_row < 0 || new_row > 7 || new_column < 0 || new_column > 7) {
-                    let blocking_piece: Piece = current_board[new_row][new_column];
+                    if !(new_row < 0 || new_row > 7 || new_column < 0 || new_column > 7) {
+                        let blocking_piece: Piece = current_board[new_row][new_column];
 
-                    if blocking_piece.color != piece_to_move.color
-                        && blocking_piece.color != Color::None
-                        && new_column != current_column
-                    {
-                        possible_moves.push((new_row, new_column));
-                    } else if blocking_piece.color == Color::None && current_column == new_column {
-                        possible_moves.push((new_row, new_column));
+                        if blocking_piece.color != piece_to_move.color
+                            && blocking_piece.color != Color::None
+                            && new_column != current_column
+                        {
+                            if blocking_piece.kind == PieceKind::King {
+                                self::GameState::Check;
+                            } else {
+                                self::GameState::InProgress;
+                            }
+                            possible_moves.push((new_row, new_column));
+                        } else if blocking_piece.color == Color::None
+                            && current_column == new_column
+                        {
+                            possible_moves.push((new_row, new_column));
+                        }
                     }
-                }
                 }
                 if possible_moves.is_empty() {
                     return None;
-                }else{
-                     return Some(possible_moves);
+                } else {
+                    return Some(possible_moves);
                 }
-
-               
             }
             PieceKind::Empty => {
                 return None;
-            } 
+            }
         }
     }
 }
@@ -388,8 +454,6 @@ impl Game {
 /// |:----------------------:|
 impl fmt::Debug for Game {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, " possible moves : {:?}", self.get_possible_moves(&(1, 1))).ok();
-
         /* build board representation string */
         // writeln!(f, "{:#?}", self.board)?;
         write!(f, "\n|:----------------------:|\n").ok();
@@ -418,6 +482,14 @@ impl fmt::Debug for Game {
             writeln!(f)?;
         }
         write!(f, "|:----------------------:|\n").ok();
+        if self.active_color == Color::White {
+            writeln!(f, "White to move");
+        } else {
+            writeln!(f, "Black to move");
+        }
+        if self.get_game_state() == GameState::Check {
+            writeln!(f, "your are in check");
+        }
         Ok(()) // i dont know what this does, but its needed
     }
 }
@@ -442,12 +514,19 @@ mod tests {
     #[test]
     fn game_in_progress_after_init() {
         let mut game = Game::new();
-        game.make_move(&(1,1), &(3,1));
-        game.make_move(&(6,2), &(4,2));
-        game.make_move(&(3,1), &(4,2));
-        game.make_move(&(0,2), &(2,0));
         println!("{:?}", game);
-
+        game.make_move(&(1, 3), &(3, 3));
+        println!("{:?}", game);
+        game.make_move(&(6, 5), &(4, 5));
+        println!("{:?}", game);
+        game.make_move(&(0, 4), &(2, 2));
+        println!("{:?}", game);
+        game.make_move(&(6, 7), &(4, 7));
+        println!("{:?}", game);
+        game.make_move(&(2, 2), &(6, 2));
+        println!("{:?}", game);
+        game.make_move(&(6, 0), &(5, 0));
+        println!("{:?}", game);
         // assert_eq!(game.get_game_state(), GameState::InProgress);
     }
 }
